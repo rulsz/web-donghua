@@ -22,15 +22,13 @@ async function scrapeAnichin() {
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
-    // Buka halaman
     await page.goto(TARGET_SITE, { waitUntil: 'domcontentloaded', timeout: 60000 });
     
-    // Tunggu 8 detik untuk memberi waktu Cloudflare menyelesaikan tantangan otomatis
+    // Beri jeda 8 detik agar proteksi Cloudflare selesai verifikasi otomatis
     await new Promise(r => setTimeout(r, 8000));
 
     const donghuaList = await page.evaluate(() => {
       const items = [];
-      // Cari berbagai selector kartu donghua yang umum di WordPress Anime
       const cards = document.querySelectorAll('article, div.bs, div.bsx, div.post-show, div.animposx');
       
       cards.forEach(card => {
@@ -61,7 +59,6 @@ async function scrapeAnichin() {
       return items;
     });
 
-    // Filter duplikat berdasarkan URL
     const uniqueList = donghuaList.filter((v, i, a) => a.findIndex(t => t.href === v.href) === i);
     
     console.log(`Ditemukan ${uniqueList.length} item.`);
