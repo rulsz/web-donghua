@@ -3,39 +3,97 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Streaming Donghua Server Cloud</title>
+  <title>Katalog Streaming Donghua</title>
   <style>
     * { box-sizing: border-box; }
     body { background-color: #0f172a; color: #f8fafc; font-family: sans-serif; margin: 0; padding: 15px; }
-    .container { max-width: 800px; margin: 0 auto; text-align: center; }
-    h1 { color: #38bdf8; margin-bottom: 20px; }
-    input { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: #fff; margin-bottom: 10px; }
-    button { width: 100%; padding: 12px; background: #0284c7; border: none; color: #fff; font-weight: bold; border-radius: 6px; cursor: pointer; }
-    .server-list { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 15px; }
-    .server-btn { background: #334155; border: 1px solid #475569; padding: 8px 14px; border-radius: 4px; color: #fff; cursor: pointer; }
+    .container { max-width: 1000px; margin: 0 auto; text-align: center; }
+    h1 { color: #38bdf8; }
+    
+    .grid { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); 
+      gap: 15px; 
+      margin-top: 20px; 
+    }
+    .card { 
+      background: #1e293b; 
+      border-radius: 8px; 
+      overflow: hidden; 
+      cursor: pointer; 
+      transition: transform 0.2s; 
+    }
+    .card:hover { transform: scale(1.03); }
+    .card img { width: 100%; height: 190px; object-fit: cover; }
+    .card-title { padding: 8px; font-size: 13px; font-weight: bold; height: 50px; overflow: hidden; }
+    
     .player-box { margin-top: 20px; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 8px; overflow: hidden; }
     iframe { width: 100%; height: 100%; border: none; }
+    
+    .server-list { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 15px; }
+    .server-btn { background: #334155; border: 1px solid #475569; padding: 8px 14px; border-radius: 4px; color: #fff; cursor: pointer; }
+    
+    #playerSection { display: none; }
+    .back-btn { background: #ef4444; color: #fff; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-bottom: 15px; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Donghua Web Streamer</h1>
-    <input type="text" id="epUrl" placeholder="Tempel URL episode Donghub (cth: https://donghub.vip/...)" />
-    <button onclick="loadVideo()">Putar Video</button>
+    <h1>Katalog Donghua</h1>
 
-    <div class="server-list" id="serverList"></div>
-    <div class="player-box" id="playerBox"></div>
+    <!-- TAMPILAN PEMUTAR VIDEO -->
+    <div id="playerSection">
+      <button class="back-btn" onclick="closePlayer()">← Kembali ke Daftar</button>
+      <h2 id="videoTitle" style="font-size: 18px; color: #38bdf8;"></h2>
+      <div class="server-list" id="serverList"></div>
+      <div class="player-box" id="playerBox"></div>
+    </div>
+
+    <!-- TAMPILAN KATALOG -->
+    <div id="catalogSection">
+      <div id="loading">Memuat daftar donghua...</div>
+      <div class="grid" id="donghuaGrid"></div>
+    </div>
   </div>
 
   <script>
-    async function loadVideo() {
-      const url = document.getElementById('epUrl').value.trim();
+    // Ambil daftar donghua saat halaman pertama kali dibuka
+    window.onload = loadCatalog;
+
+    async function loadCatalog() {
+      try {
+        const res = await fetch('/api/list');
+        const data = await res.json();
+        
+        document.getElementById('loading').style.display = 'none';
+        const grid = document.getElementById('donghuaGrid');
+        grid.innerHTML = '';
+
+        if (data.data && data.data.length > 0) {
+          data.data.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.onclick = () => playDonghua(item.href, item.title);
+            card.innerHTML = `
+              <img src="${item.poster || 'https://via.placeholder.com/150'}" alt="${item.title}" />
+              <div class="card-title">${item.title}</div>
+            `;
+            grid.appendChild(card);
+          });
+        }
+      } catch (err) {
+        document.getElementById('loading').innerText = 'Gagal memuat katalog.';
+      }
+    }
+
+    async function playDonghua(url, title) {
+      document.getElementById('catalogSection').style.display = 'none';
+      document.getElementById('playerSection').style.display = 'block';
+      document.getElementById('videoTitle').innerText = title;
+      
       const serverList = document.getElementById('serverList');
       const playerBox = document.getElementById('playerBox');
-
-      if (!url) return alert('Masukkan URL episode terlebih dahulu!');
-
-      serverList.innerHTML = '<p>Memuat server video dari cloud...</p>';
+      serverList.innerHTML = 'Memuat server...';
       playerBox.innerHTML = '';
 
       try {
@@ -48,20 +106,22 @@
             const btn = document.createElement('button');
             btn.className = 'server-btn';
             btn.innerText = srv.name;
-            btn.onclick = () => setIframe(srv.iframe);
+            btn.onclick = () => playerBox.innerHTML = `<iframe src="${srv.iframe}" allowfullscreen></iframe>`;
             serverList.appendChild(btn);
           });
-          setIframe(data.servers[0].iframe);
+          playerBox.innerHTML = `<iframe src="${data.servers[0].iframe}" allowfullscreen></iframe>`;
         } else {
-          serverList.innerHTML = '<p>Server video tidak ditemukan atau link salah.</p>';
+          serverList.innerHTML = '<p>Server video tidak ditemukan.</p>';
         }
       } catch (err) {
-        serverList.innerHTML = '<p>Gagal menghubungi server backend.</p>';
+        serverList.innerHTML = '<p>Terjadi kesalahan server.</p>';
       }
     }
 
-    function setIframe(src) {
-      document.getElementById('playerBox').innerHTML = `<iframe src="${src}" allowfullscreen></iframe>`;
+    function closePlayer() {
+      document.getElementById('playerSection').style.display = 'none';
+      document.getElementById('catalogSection').style.display = 'block';
+      document.getElementById('playerBox').innerHTML = '';
     }
   </script>
 </body>
