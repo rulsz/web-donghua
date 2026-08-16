@@ -8,7 +8,7 @@
     * { box-sizing: border-box; }
     body { background-color: #0f172a; color: #f8fafc; font-family: sans-serif; margin: 0; padding: 15px; }
     .container { max-width: 1000px; margin: 0 auto; text-align: center; }
-    h1 { color: #38bdf8; }
+    h1 { color: #38bdf8; margin-bottom: 20px; }
     
     .grid { 
       display: grid; 
@@ -21,7 +21,9 @@
       border-radius: 8px; 
       overflow: hidden; 
       cursor: pointer; 
+      transition: transform 0.2s; 
     }
+    .card:hover { transform: scale(1.03); }
     .card img { width: 100%; height: 180px; object-fit: cover; background: #334155; }
     .card-title { padding: 8px; font-size: 12px; font-weight: bold; height: 45px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     
@@ -40,6 +42,7 @@
   <div class="container">
     <h1>Katalog Donghua</h1>
 
+    <!-- SECTION PEMUTAR VIDEO -->
     <div id="playerSection">
       <button class="back-btn" onclick="closePlayer()">← Kembali ke Daftar</button>
       <h2 id="videoTitle" style="font-size: 16px; color: #38bdf8;"></h2>
@@ -47,8 +50,9 @@
       <div class="player-box" id="playerBox"></div>
     </div>
 
+    <!-- SECTION KATALOG -->
     <div id="catalogSection">
-      <div id="statusMsg">Memuat katalog dari backend...</div>
+      <div id="statusMsg">Memuat katalog donghua...</div>
       <div class="grid" id="donghuaGrid"></div>
     </div>
   </div>
@@ -78,10 +82,10 @@
             grid.appendChild(card);
           });
         } else {
-          status.innerText = 'Server diblokir Cloudflare. Coba muat ulang.';
+          status.innerText = 'Gagal memuat data dari server. Silakan muat ulang.';
         }
       } catch (err) {
-        status.innerText = 'Gagal menghubungi server Vercel.';
+        status.innerText = 'Gagal menghubungi server.';
       }
     }
 
