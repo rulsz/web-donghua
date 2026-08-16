@@ -8,6 +8,8 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -32,17 +34,8 @@ jobs:
             exit 1
           fi
 
-      - name: Commit and Push data.json
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b temp-branch
-          git add data.json
-          git commit -m "Auto update data.json [skip ci]" || exit 0
-          git fetch origin main
-          git checkout main
-          git reset --hard origin/main
-          git checkout temp-branch data.json
-          git add data.json
-          git commit -m "Auto update data.json [skip ci]" || exit 0
-          git push origin main
+      - name: Auto Commit data.json
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto update data.json [skip ci]"
+          file_pattern: "data.json"
