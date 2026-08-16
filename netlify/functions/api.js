@@ -1,80 +1,74 @@
 const express = require('express');
 const serverless = require('serverless-http');
 const axios = require('axios');
-const cheerio = require('cheerio');
 const cors = require('cors');
 
 const app = express();
 app.use(cors());
 
-const TARGET_SITE = 'https://anichin.moe';
-
-async function getHTML(url) {
-  const proxies = [
-    `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-    `https://corsproxy.io/?${encodeURIComponent(url)}`
-  ];
-
-  for (const proxy of proxies) {
-    try {
-      const res = await axios.get(proxy, { timeout: 8000 });
-      let html = res.data.contents || res.data;
-      if (typeof html === 'string' && (html.includes('article') || html.includes('iframe'))) {
-        return html;
-      }
-    } catch (e) {}
-  }
-  return null;
-}
-
+// 1. Endpoint Katalog Donghua / Anime (Menggunakan Consumer API Public yang Stabil)
 app.get('/api/list', async (req, res) => {
   try {
-    const html = await getHTML(TARGET_SITE);
-    if (!html) return res.status(500).json({ success: false, message: 'Gagal mengambil data' });
-
-    const $ = cheerio.load(html);
-    const donghuaList = [];
-
-    $('article, div.bs, div.post-show').each((i, el) => {
-      const card = $(el);
-      const title = card.find('div.tt, h2, .title, .entry-title').first().text().trim();
-      const href = card.find('a').first().attr('href');
-      const imgEl = card.find('img').first();
-      let poster = imgEl.attr('data-src') || imgEl.attr('src') || imgEl.attr('data-lazy-src');
-
-      if (title && href && href.includes('anichin')) {
-        donghuaList.push({
-          title: title.replace(/\s+/g, ' '),
-          href: href,
-          poster: poster || 'https://via.placeholder.com/150'
-        });
-      }
+    // Mengambil daftar anime/donghua terpopuler/terbaru dari API Consumet
+    const response = await axios.get('https://api.consumet.org/anime/gogoanime/top-airing', {
+      timeout: 8000
     });
 
-    const uniqueList = donghuaList.filter((v, i, a) => a.findIndex(t => t.href === v.href) === i);
-    res.json({ success: true, data: uniqueList });
+    const results = response.data.results || [];
+    const donghuaList = results.map(item => ({
+      title: item.title,
+      href: item.id, // ID untuk mencari episode
+      poster: item.image
+    }));
+
+    res.json({ success: true, data: donghuaList });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    // Fallback jika API utama busy: Gunakan Jikan API (MyAnimeList)
+    try {
+      const fallback = await axios.get('https://api.jikan.moe/v4/seasons/now?limit=24', { timeout: 8000 });
+      const items = fallback.data.data || [];
+      const donghuaList = items.map(item => ({
+        title: item.title,
+        href: item.mal_id.toString(),
+        poster: item.images?.jpg?.large_image_url || item.images?.jpg?.image_url
+      }));
+
+      res.json({ success: true, data: donghuaList });
+    } catch (e) {
+      res.status(500).json({ success: false, error: 'Gagal mengambil data dari server API.' });
+    }
   }
 });
 
+// 2. Endpoint Stream Player Episode
 app.get('/api/episode', async (req, res) => {
   try {
-    const episodeUrl = req.query.url;
-    if (!episodeUrl) return res.status(400).json({ error: 'URL episode diperlukan' });
+    const id = req.query.url;
+    if (!id) return res.status(400).json({ error: 'ID episode diperlukan' });
 
-    const html = await getHTML(episodeUrl);
-    if (!html) return res.status(500).json({ error: 'Gagal memuat episode' });
+    // Mencari info streaming dari Consumet API
+    try {
+      const infoRes = await axios.get(`https://api.consumet.org/anime/gogoanime/info/${id}`, { timeout: 8000 });
+      const episodes = infoRes.data.episodes || [];
+      
+      if (episodes.length > 0) {
+        const epId = episodes[0].id; // Ambil episode 1
+        const streamRes = await axios.get(`https://api.consumet.org/anime/gogoanime/watch/${epId}`, { timeout: 8000 });
+        const iframeSrc = streamRes.data.headers?.Referer || streamRes.data.sources[0]?.url;
 
-    const $ = cheerio.load(html);
-    const servers = [];
-    const directIframe = $('div.player-embed iframe, div.embed-holder iframe, iframe').first().attr('src');
+        return res.json({
+          success: true,
+          servers: [{ name: 'Server Utama', iframe: iframeSrc }]
+        });
+      }
+    } catch (e) {}
 
-    if (directIframe) {
-      servers.push({ name: 'Server Utama', iframe: directIframe });
-    }
+    // Fallback embed universal
+    res.json({
+      success: true,
+      servers: [{ name: 'Server Alternative', iframe: `https://vidsrc.to/embed/anime/${id}` }]
+    });
 
-    res.json({ success: true, servers });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
