@@ -10,12 +10,12 @@ app.use(express.static('public'));
 
 const TARGET_SITE = 'https://anichin.moe';
 
-// Serve frontend HTML
+// Serve frontend HTML utama
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Helper untuk fetch HTML melalui proxy perantara
+// Helper untuk mengambil HTML via Proxy Perantara
 async function getHTML(url) {
   const proxies = [
     `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
@@ -30,7 +30,7 @@ async function getHTML(url) {
         return html;
       }
     } catch (e) {
-      // Coba proxy berikutnya
+      // Lanjut ke opsi proxy berikutnya jika gagal
     }
   }
   return null;
@@ -68,7 +68,7 @@ app.get('/api/list', async (req, res) => {
   }
 });
 
-// 2. Endpoint Server Episode Video
+// 2. Endpoint Stream Player Episode
 app.get('/api/episode', async (req, res) => {
   try {
     const episodeUrl = req.query.url;
@@ -91,6 +91,6 @@ app.get('/api/episode', async (req, res) => {
   }
 });
 
-// Port Replit bawaan (0.0.0.0)
+// Pengaturan Port Dinamis untuk Railway (0.0.0.0 Wajib untuk Railway)
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Server Replit jalan di port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Server Railway berjalan di port ${PORT}`));
