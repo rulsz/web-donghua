@@ -21,17 +21,14 @@ jobs:
         run: |
           npm install express cheerio axios cors puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
 
-      - name: Debug & Run Scraper
+      - name: Run Scraper Script
         run: |
-          echo "=== Cek Daftar File di Repo ==="
-          ls -la
-          echo "=== Mengesekusi Scraper ==="
-          FILE=$(find . -maxdepth 2 -iname "scraper.js" | head -n 1)
-          if [ -n "$FILE" ]; then
-            echo "File ditemukan di: $FILE"
-            node "$FILE"
+          TARGET_FILE=$(find . -maxdepth 2 -iname "*scraper*.js" | head -n 1)
+          if [ -n "$TARGET_FILE" ]; then
+            echo "Menjalankan file: $TARGET_FILE"
+            node "$TARGET_FILE"
           else
-            echo "File scraper.js benar-benar tidak ditemukan!"
+            echo "File scraper tidak ditemukan!"
             exit 1
           fi
 
@@ -41,4 +38,5 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add data.json
           git commit -m "Auto update data.json [skip ci]" || exit 0
+          git pull --rebase origin main
           git push
