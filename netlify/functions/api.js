@@ -6,37 +6,24 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 
-// 1. Endpoint Katalog Donghua / Anime (Menggunakan Consumer API Public yang Stabil)
+// 1. Endpoint Katalog (Jikan API / MyAnimeList)
 app.get('/api/list', async (req, res) => {
   try {
-    // Mengambil daftar anime/donghua terpopuler/terbaru dari API Consumet
-    const response = await axios.get('https://api.consumet.org/anime/gogoanime/top-airing', {
-      timeout: 8000
+    // Mengambil anime/donghua terbaru yang sedang tayang
+    const response = await axios.get('https://api.jikan.moe/v4/seasons/now?limit=24', {
+      timeout: 9000
     });
 
-    const results = response.data.results || [];
-    const donghuaList = results.map(item => ({
-      title: item.title,
-      href: item.id, // ID untuk mencari episode
-      poster: item.image
+    const items = response.data.data || [];
+    const donghuaList = items.map(item => ({
+      title: item.title_english || item.title,
+      href: item.mal_id.toString(),
+      poster: item.images?.jpg?.large_image_url || item.images?.jpg?.image_url
     }));
 
     res.json({ success: true, data: donghuaList });
   } catch (error) {
-    // Fallback jika API utama busy: Gunakan Jikan API (MyAnimeList)
-    try {
-      const fallback = await axios.get('https://api.jikan.moe/v4/seasons/now?limit=24', { timeout: 8000 });
-      const items = fallback.data.data || [];
-      const donghuaList = items.map(item => ({
-        title: item.title,
-        href: item.mal_id.toString(),
-        poster: item.images?.jpg?.large_image_url || item.images?.jpg?.image_url
-      }));
-
-      res.json({ success: true, data: donghuaList });
-    } catch (e) {
-      res.status(500).json({ success: false, error: 'Gagal mengambil data dari server API.' });
-    }
+    res.status(500).json({ success: false, error: 'Gagal memuat katalog dari API.' });
   }
 });
 
@@ -46,27 +33,12 @@ app.get('/api/episode', async (req, res) => {
     const id = req.query.url;
     if (!id) return res.status(400).json({ error: 'ID episode diperlukan' });
 
-    // Mencari info streaming dari Consumet API
-    try {
-      const infoRes = await axios.get(`https://api.consumet.org/anime/gogoanime/info/${id}`, { timeout: 8000 });
-      const episodes = infoRes.data.episodes || [];
-      
-      if (episodes.length > 0) {
-        const epId = episodes[0].id; // Ambil episode 1
-        const streamRes = await axios.get(`https://api.consumet.org/anime/gogoanime/watch/${epId}`, { timeout: 8000 });
-        const iframeSrc = streamRes.data.headers?.Referer || streamRes.data.sources[0]?.url;
+    // Menggunakan pemutar embed anime universal berbasis ID MyAnimeList
+    const embedUrl = `https://vidsrc.to/embed/anime/${id}`;
 
-        return res.json({
-          success: true,
-          servers: [{ name: 'Server Utama', iframe: iframeSrc }]
-        });
-      }
-    } catch (e) {}
-
-    // Fallback embed universal
     res.json({
       success: true,
-      servers: [{ name: 'Server Alternative', iframe: `https://vidsrc.to/embed/anime/${id}` }]
+      servers: [{ name: 'Server Pemutar Utama', iframe: embedUrl }]
     });
 
   } catch (error) {
