@@ -21,8 +21,19 @@ jobs:
         run: |
           npm install express cheerio axios cors puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
 
-      - name: Run Scraper Script
-        run: node scraper.js
+      - name: Debug & Run Scraper
+        run: |
+          echo "=== Cek Daftar File di Repo ==="
+          ls -la
+          echo "=== Mengesekusi Scraper ==="
+          FILE=$(find . -maxdepth 2 -iname "scraper.js" | head -n 1)
+          if [ -n "$FILE" ]; then
+            echo "File ditemukan di: $FILE"
+            node "$FILE"
+          else
+            echo "File scraper.js benar-benar tidak ditemukan!"
+            exit 1
+          fi
 
       - name: Commit and Push data.json
         run: |
