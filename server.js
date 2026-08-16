@@ -8,47 +8,48 @@ const app = express();
 app.use(cors());
 app.use(express.static('public'));
 
-const BASE_URL = 'https://anichin.moe';
-
-// Header khusus untuk lolos anti-bot dasar
+const TARGET_SITE = 'https://anichin.moe';
 const HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
-  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-  'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
-  'Cache-Control': 'no-cache',
-  'Pragma': 'no-cache',
-  'Referer': 'https://anichin.moe/'
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 };
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 1. Endpoint Catalog / List Donghua Anichin
+// Helper function untuk mengambil HTML lewat Proxy jika request langsung diblokir
+async function fetchHTML(url) {
+  try {
+    // 1. Coba request langsung
+    const res = await axios.get(url, { headers: HEADERS, timeout: 5000 });
+    return res.data;
+  } catch (err) {
+    // 2. Jika diblokir (Cloudflare 403/503), gunakan AllOrigins Proxy Service
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    const resProxy = await axios.get(proxyUrl, { timeout: 8000 });
+    return resProxy.data.contents;
+  }
+}
+
+// 1. Endpoint Catalog List
 app.get('/api/list', async (req, res) => {
   try {
-    const page = req.query.page || 1;
-    const targetUrl = page > 1 ? `${BASE_URL}/page/${page}/` : BASE_URL;
+    const html = await fetchHTML(TARGET_SITE);
+    if (!html) return res.status(500).json({ error: 'Gagal menembus proteksi web' });
 
-    const { data: html } = await axios.get(targetUrl, { 
-      headers: HEADERS,
-      timeout: 8000 
-    });
-    
     const $ = cheerio.load(html);
     const donghuaList = [];
 
-    // Selector khusus struktur HTML Anichin (Theme WordPress Anime)
-    $('div.listupd article.bs, div.post-show, article').each((i, el) => {
+    // Parsing struktur HTML WordPress Anime (Anichin / Donghub)
+    $('article, div.bs, div.animposx, div.post-show').each((i, el) => {
       const card = $(el);
-      
       const title = card.find('div.tt, h2, .title, .entry-title').first().text().trim();
       const href = card.find('a').first().attr('href');
       
       const imgEl = card.find('img').first();
       let poster = imgEl.attr('data-src') || imgEl.attr('src') || imgEl.attr('data-lazy-src');
 
-      if (title && href && href.includes('anichin')) {
+      if (title && href && href.includes('http')) {
         donghuaList.push({
           title: title.replace(/\s+/g, ' '),
           href: href,
@@ -57,12 +58,12 @@ app.get('/api/list', async (req, res) => {
       }
     });
 
-    // Clean duplicate item
+    // Filter duplikat
     const uniqueList = donghuaList.filter((v, i, a) => a.findIndex(t => t.href === v.href) === i);
 
     res.json({ success: true, count: uniqueList.length, data: uniqueList });
   } catch (error) {
-    res.status(500).json({ error: error.message, note: 'Terhalang blokir anti-bot Anichin/Cloudflare' });
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -72,17 +73,17 @@ app.get('/api/episode', async (req, res) => {
     const episodeUrl = req.query.url;
     if (!episodeUrl) return res.status(400).json({ error: 'URL episode diperlukan' });
 
-    const { data: html } = await axios.get(episodeUrl, { headers: HEADERS });
+    const html = await fetchHTML(episodeUrl);
     const $ = cheerio.load(html);
     const servers = [];
 
-    // Ambil iframe utama jika ada
+    // Ambil iframe utama yang ada di halaman
     const directIframe = $('div.player-embed iframe, div.embed-holder iframe, iframe').first().attr('src');
     if (directIframe) {
       servers.push({ name: 'Server Utama', iframe: directIframe });
     }
 
-    // Ambil pilihan server dari dropdown/select
+    // Ambil opsi dari select option
     const options = $('select.mirror option, div.server-select select option, option[data-post]');
 
     for (let i = 0; i < options.length; i++) {
@@ -98,7 +99,7 @@ app.get('/api/episode', async (req, res) => {
           params.append('post', postId);
           params.append('type', serverType);
 
-          const ajaxRes = await axios.post(`${BASE_URL}/wp-admin/admin-ajax.php`, params, {
+          const ajaxRes = await axios.post(`${TARGET_SITE}/wp-admin/admin-ajax.php`, params, {
             headers: {
               ...HEADERS,
               'X-Requested-With': 'XMLHttpRequest',
