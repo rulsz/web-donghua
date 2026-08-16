@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Streaming Donghua Server Cloud</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { background-color: #0f172a; color: #f8fafc; font-family: sans-serif; margin: 0; padding: 15px; }
+    .container { max-width: 800px; margin: 0 auto; text-align: center; }
+    h1 { color: #38bdf8; margin-bottom: 20px; }
+    input { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: #fff; margin-bottom: 10px; }
+    button { width: 100%; padding: 12px; background: #0284c7; border: none; color: #fff; font-weight: bold; border-radius: 6px; cursor: pointer; }
+    .server-list { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 15px; }
+    .server-btn { background: #334155; border: 1px solid #475569; padding: 8px 14px; border-radius: 4px; color: #fff; cursor: pointer; }
+    .player-box { margin-top: 20px; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 8px; overflow: hidden; }
+    iframe { width: 100%; height: 100%; border: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Donghua Web Streamer</h1>
+    <input type="text" id="epUrl" placeholder="Tempel URL episode Donghub (cth: https://donghub.vip/...)" />
+    <button onclick="loadVideo()">Putar Video</button>
+
+    <div class="server-list" id="serverList"></div>
+    <div class="player-box" id="playerBox"></div>
+  </div>
+
+  <script>
+    async function loadVideo() {
+      const url = document.getElementById('epUrl').value.trim();
+      const serverList = document.getElementById('serverList');
+      const playerBox = document.getElementById('playerBox');
+
+      if (!url) return alert('Masukkan URL episode terlebih dahulu!');
+
+      serverList.innerHTML = '<p>Memuat server video dari cloud...</p>';
+      playerBox.innerHTML = '';
+
+      try {
+        const response = await fetch(`/api/episode?url=${encodeURIComponent(url)}`);
+        const data = await response.json();
+
+        if (data.servers && data.servers.length > 0) {
+          serverList.innerHTML = '';
+          data.servers.forEach((srv) => {
+            const btn = document.createElement('button');
+            btn.className = 'server-btn';
+            btn.innerText = srv.name;
+            btn.onclick = () => setIframe(srv.iframe);
+            serverList.appendChild(btn);
+          });
+          setIframe(data.servers[0].iframe);
+        } else {
+          serverList.innerHTML = '<p>Server video tidak ditemukan atau link salah.</p>';
+        }
+      } catch (err) {
+        serverList.innerHTML = '<p>Gagal menghubungi server backend.</p>';
+      }
+    }
+
+    function setIframe(src) {
+      document.getElementById('playerBox').innerHTML = `<iframe src="${src}" allowfullscreen></iframe>`;
+    }
+  </script>
+</body>
+</html>
