@@ -36,7 +36,13 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
+          git checkout -b temp-branch
+          git add data.json
           git commit -m "Auto update data.json [skip ci]" || exit 0
-          git pull --rebase --autostash origin main
-          git push
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
+          git checkout temp-branch data.json
+          git add data.json
+          git commit -m "Auto update data.json [skip ci]" || exit 0
+          git push origin main
