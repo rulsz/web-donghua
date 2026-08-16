@@ -18,40 +18,68 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 1. Endpoint Ambil List Donghua (Homepage / Catalog)
+// 1. Endpoint Catalog / List Donghua
 app.get('/api/list', async (req, res) => {
   try {
     const page = req.query.page || 1;
     const search = req.query.s || '';
-    
-    // Jika ada pencarian, gunakan query ?s=, jika tidak ambil dari halaman catalog
-    const targetUrl = search 
-      ? `${BASE_URL}/page/${page}/?s=${encodeURIComponent(search)}`
-      : `${BASE_URL}/donghua/page/${page}/`;
 
-    const { data: html } = await axios.get(targetUrl, { headers: HEADERS });
+    // Coba beberapa pilihan URL halaman depan/katalog
+    const targetUrls = search 
+      ? [`${BASE_URL}/page/${page}/?s=${encodeURIComponent(search)}`]
+      : [
+          BASE_URL, // Coba halaman utama langsung
+          `${BASE_URL}/page/${page}/`,
+          `${BASE_URL}/donghua/page/${page}/`
+        ];
+
+    let html = '';
+    for (const url of targetUrls) {
+      try {
+        const response = await axios.get(url, { headers: HEADERS, timeout: 5000 });
+        if (response.data) {
+          html = response.data;
+          break;
+        }
+      } catch (e) {
+        // Coba URL berikutnya jika 404
+      }
+    }
+
+    if (!html) return res.status(500).json({ error: 'Gagal mengambil data dari Donghub' });
+
     const $ = cheerio.load(html);
     const donghuaList = [];
 
-    // Mengambil elemen kartu donghua dari HTML WordPress
-    $('div.listupd article.bs, div.animposx').each((i, el) => {
+    // Selector universal untuk berbagai tema WordPress anime/donghua
+    $('article, div.bs, div.animposx, div.post-show, div.epseries').each((i, el) => {
       const card = $(el);
-      const title = card.find('div.tt, h2, .title').text().trim();
+      const title = card.find('div.tt, h2, .title, .entry-title, a[title]').first().text().trim() || card.find('a').attr('title');
       const href = card.find('a').attr('href');
-      const poster = card.find('img').attr('src') || card.find('img').attr('data-src');
+      
+      // Ambil gambar dari src atau data-src (lazyload)
+      const imgEl = card.find('img').first();
+      let poster = imgEl.attr('data-src') || imgEl.attr('src') || imgEl.attr('data-lazy-src');
 
-      if (title && href) {
-        donghuaList.push({ title, href, poster });
+      if (title && href && href.includes('donghub.vip')) {
+        donghuaList.push({ 
+          title: title.replace(/\s+/g, ' '), 
+          href: href, 
+          poster: poster || 'https://via.placeholder.com/150' 
+        });
       }
     });
 
-    res.json({ success: true, page: Number(page), data: donghuaList });
+    // Hapus duplikat berdasarkan URL link
+    const uniqueList = donghuaList.filter((v, i, a) => a.findIndex(t => t.href === v.href) === i);
+
+    res.json({ success: true, data: uniqueList });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// 2. Endpoint Scraper Player Episode Video
+// 2. Endpoint Player Video Episode
 app.get('/api/episode', async (req, res) => {
   try {
     const episodeUrl = req.query.url;
@@ -119,4 +147,4 @@ app.get('/api/episode', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server cloud berjalan di port ${PORT}`));
+app.listen(PORT, () => console.log(`Server berjalan di port ${PORT}`));
