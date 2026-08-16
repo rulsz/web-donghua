@@ -21,9 +21,7 @@
       border-radius: 8px; 
       overflow: hidden; 
       cursor: pointer; 
-      transition: transform 0.2s; 
     }
-    .card:hover { transform: scale(1.03); }
     .card img { width: 100%; height: 180px; object-fit: cover; background: #334155; }
     .card-title { padding: 8px; font-size: 12px; font-weight: bold; height: 45px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     
@@ -42,7 +40,6 @@
   <div class="container">
     <h1>Katalog Donghua</h1>
 
-    <!-- TAMPILAN PEMUTAR VIDEO -->
     <div id="playerSection">
       <button class="back-btn" onclick="closePlayer()">← Kembali ke Daftar</button>
       <h2 id="videoTitle" style="font-size: 16px; color: #38bdf8;"></h2>
@@ -50,9 +47,8 @@
       <div class="player-box" id="playerBox"></div>
     </div>
 
-    <!-- TAMPILAN KATALOG -->
     <div id="catalogSection">
-      <div id="statusMsg">Memuat daftar donghua...</div>
+      <div id="statusMsg">Memuat katalog dari backend...</div>
       <div class="grid" id="donghuaGrid"></div>
     </div>
   </div>
@@ -63,60 +59,29 @@
     async function loadCatalog() {
       const status = document.getElementById('statusMsg');
       const grid = document.getElementById('donghuaGrid');
-      
-      const targetUrl = 'https://anichin.moe/';
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
 
       try {
-        const res = await fetch(proxyUrl);
+        const res = await fetch('/api/list');
         const data = await res.json();
         
-        if (!data.contents) throw new Error('Response kosong');
-
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(data.contents, 'text/html');
-        
-        // Ambil elemen kartu dari DOM HTML
-        const articles = doc.querySelectorAll('article, div.bs, div.post-show');
-        const items = [];
-
-        articles.forEach(el => {
-          const titleEl = el.querySelector('div.tt, h2, .title, .entry-title');
-          const linkEl = el.querySelector('a');
-          const imgEl = el.querySelector('img');
-
-          if (titleEl && linkEl) {
-            const title = titleEl.innerText.trim();
-            const href = linkEl.getAttribute('href');
-            let poster = imgEl ? (imgEl.getAttribute('data-src') || imgEl.getAttribute('src')) : '';
-
-            if (href && href.includes('anichin')) {
-              items.push({ title, href, poster });
-            }
-          }
-        });
-
-        // Hapus duplikat
-        const uniqueItems = items.filter((v, i, a) => a.findIndex(t => t.href === v.href) === i);
-
-        if (uniqueItems.length > 0) {
+        if (data.success && data.data.length > 0) {
           status.style.display = 'none';
           grid.innerHTML = '';
-          uniqueItems.forEach(item => {
+          data.data.forEach(item => {
             const card = document.createElement('div');
             card.className = 'card';
             card.onclick = () => playDonghua(item.href, item.title);
             card.innerHTML = `
-              <img src="${item.poster || 'https://via.placeholder.com/150'}" alt="${item.title}" loading="lazy" />
+              <img src="${item.poster}" alt="${item.title}" loading="lazy" />
               <div class="card-title">${item.title}</div>
             `;
             grid.appendChild(card);
           });
         } else {
-          status.innerText = 'Daftar donghua kosong. Coba muat ulang halaman.';
+          status.innerText = 'Server diblokir Cloudflare. Coba muat ulang.';
         }
       } catch (err) {
-        status.innerText = 'Gagal memuat katalog (Koneksi diblokir atau timeout).';
+        status.innerText = 'Gagal menghubungi server Vercel.';
       }
     }
 
@@ -127,7 +92,7 @@
       
       const serverList = document.getElementById('serverList');
       const playerBox = document.getElementById('playerBox');
-      serverList.innerHTML = 'Memuat server...';
+      serverList.innerHTML = 'Memuat player...';
       playerBox.innerHTML = '';
 
       try {
