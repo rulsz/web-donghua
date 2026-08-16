@@ -18,6 +18,40 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// 1. Endpoint Ambil List Donghua (Homepage / Catalog)
+app.get('/api/list', async (req, res) => {
+  try {
+    const page = req.query.page || 1;
+    const search = req.query.s || '';
+    
+    // Jika ada pencarian, gunakan query ?s=, jika tidak ambil dari halaman catalog
+    const targetUrl = search 
+      ? `${BASE_URL}/page/${page}/?s=${encodeURIComponent(search)}`
+      : `${BASE_URL}/donghua/page/${page}/`;
+
+    const { data: html } = await axios.get(targetUrl, { headers: HEADERS });
+    const $ = cheerio.load(html);
+    const donghuaList = [];
+
+    // Mengambil elemen kartu donghua dari HTML WordPress
+    $('div.listupd article.bs, div.animposx').each((i, el) => {
+      const card = $(el);
+      const title = card.find('div.tt, h2, .title').text().trim();
+      const href = card.find('a').attr('href');
+      const poster = card.find('img').attr('src') || card.find('img').attr('data-src');
+
+      if (title && href) {
+        donghuaList.push({ title, href, poster });
+      }
+    });
+
+    res.json({ success: true, page: Number(page), data: donghuaList });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 2. Endpoint Scraper Player Episode Video
 app.get('/api/episode', async (req, res) => {
   try {
     const episodeUrl = req.query.url;
@@ -27,13 +61,11 @@ app.get('/api/episode', async (req, res) => {
     const $ = cheerio.load(html);
     const servers = [];
 
-    // 1. Cek jika iframe pemutar video langsung ada di halaman tanpa AJAX
     const directIframe = $('div.player-embed iframe, div.embed-holder iframe, iframe').first().attr('src');
     if (directIframe) {
       servers.push({ name: 'Server Utama', iframe: directIframe });
     }
 
-    // 2. Cari semua kemungkinan tag option/select server video AJAX
     const options = $('select.mirror option, div.server-select select option, select#select-server option, option[data-post]');
 
     for (let i = 0; i < options.length; i++) {
@@ -43,7 +75,6 @@ app.get('/api/episode', async (req, res) => {
       const serverName = el.text().trim() || `Server ${i + 1}`;
 
       if (postId && serverType) {
-        // Coba beberapa variasi nama action AJAX khas WordPress Donghua
         const actions = ['player_ajax', 'muvipro_player_content', 'get_player'];
         
         for (const actionName of actions) {
@@ -73,18 +104,14 @@ app.get('/api/episode', async (req, res) => {
 
             if (iframeSrc) {
               servers.push({ name: serverName, iframe: iframeSrc });
-              break; // Berhasil mendapatkan iframe, lanjut ke server berikutnya
+              break;
             }
-          } catch (e) {
-            // Lanjut ke action berikutnya jika gagal
-          }
+          } catch (e) {}
         }
       }
     }
 
-    // Filter server agar tidak ada URL iframe yang ganda/duplikat
     const uniqueServers = servers.filter((v, i, a) => a.findIndex(t => t.iframe === v.iframe) === i);
-
     res.json({ success: true, servers: uniqueServers });
   } catch (error) {
     res.status(500).json({ error: error.message });
