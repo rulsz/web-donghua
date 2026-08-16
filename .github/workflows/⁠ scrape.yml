@@ -2,28 +2,29 @@ name: Auto Scrape Anichin
 
 on:
   schedule:
-    - cron: '0 */6 * * *' # Jalan otomatis tiap 6 jam
-  workflow_dispatch: # Tombol jalankan manual
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
 
       - name: Install Dependencies
-        run: npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
+        run: |
+          npm install express cheerio axios cors puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
 
-      - name: Run Scraper
+      - name: Run Scraper Script
         run: node scraper.js
 
-      - name: Commit & Push data.json
+      - name: Commit and Push data.json
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
